@@ -20,7 +20,7 @@ public:
     }
 
 private:
-    GLFWwindow *window;
+    GLFWwindow *window = nullptr;
 
     void initWindow()
     {
@@ -53,10 +53,9 @@ private:
 
 int main()
 {
-    HelloTriangleApplication app;
-
     try
     {
+        HelloTriangleApplication app;
         app.run();
     }
     catch (const std::exception &e)
