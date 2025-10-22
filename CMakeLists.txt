@@ -23,4 +23,4 @@ add_executable(Tutorial src/main.cpp)
 # Link libraries
 target_link_libraries(Tutorial ${Vulkan_LIBRARIES} ${GLFW3_LIBRARIES})
 target_include_directories(Tutorial PRIVATE ${Vulkan_INCLUDE_DIRS} ${GLFW3_INCLUDE_DIRS})
-target_compile_definitions(Tutorial PRIVATE ${GLFW3_CFLAGS_OTHER})
+target_compile_definitions(Tutorial PRIVATE ${GLFW3_CFLAGS_OTHER} VULKAN_HPP_NO_STRUCT_CONSTRUCTORS)
