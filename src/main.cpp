@@ -54,6 +54,7 @@ private:
     void initVulkan()
     {
         createInstance();
+        setupDebugMessenger();
     }
 
     void mainLoop()
