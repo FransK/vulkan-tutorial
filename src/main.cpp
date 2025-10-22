@@ -36,8 +36,10 @@ public:
 
 private:
     GLFWwindow *window = nullptr;
+
     vk::raii::Context context;
     vk::raii::Instance instance = nullptr;
+    vk::raii::DebugUtilsMessengerEXT debugMessenger = nullptr;
 
     void initWindow()
     {
@@ -94,27 +96,18 @@ private:
             throw std::runtime_error("One or more required layers are not supported!");
         }
 
-        // Get the required instance extensions from GLFW
-        uint32_t glfwExtensionCount = 0;
-        auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+        // Get the required instance extensions
+        auto requiredExtensions = getRequiredExtensions();
 
-        // Check if the required GLFW extensions are supported by the Vulkan implementation
+        // Check if the required extensions are supported by the Vulkan implementation.
         auto extensionProperties = context.enumerateInstanceExtensionProperties();
-        std::cout << "available extensions:\n";
-        for (const auto &extension : extensionProperties)
+        for (auto const &requiredExtension : requiredExtensions)
         {
-            std::cout << '\t' << extension.extensionName << std::endl;
-        }
-
-        std::cout << "required extensions:\n";
-        for (uint32_t i = 0; i < glfwExtensionCount; ++i)
-        {
-            std::cout << '\t' << glfwExtensions[i] << std::endl;
             if (std::ranges::none_of(extensionProperties,
-                                     [glfwExtension = glfwExtensions[i]](auto const &extensionProperty)
-                                     { return strcmp(extensionProperty.extensionName, glfwExtension) == 0; }))
+                                     [requiredExtension](auto const &extensionProperty)
+                                     { return strcmp(extensionProperty.extensionName, requiredExtension) == 0; }))
             {
-                throw std::runtime_error("Required GLFW extension not supported: " + std::string(glfwExtensions[i]));
+                throw std::runtime_error("Required extension not supported: " + std::string(requiredExtension));
             }
         }
 
@@ -122,10 +115,47 @@ private:
             .pApplicationInfo = &appInfo,
             .enabledLayerCount = static_cast<uint32_t>(requiredLayers.size()),
             .ppEnabledLayerNames = requiredLayers.data(),
-            .enabledExtensionCount = glfwExtensionCount,
-            .ppEnabledExtensionNames = glfwExtensions};
-
+            .enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size()),
+            .ppEnabledExtensionNames = requiredExtensions.data()};
         instance = vk::raii::Instance(context, createInfo);
+    }
+
+    void setupDebugMessenger()
+    {
+        if (!enableValidationLayers)
+            return;
+
+        vk::DebugUtilsMessageSeverityFlagsEXT severityFlags(vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError);
+        vk::DebugUtilsMessageTypeFlagsEXT messageTypeFlags(vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation);
+        vk::DebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCreateInfoEXT{
+            .messageSeverity = severityFlags,
+            .messageType = messageTypeFlags,
+            .pfnUserCallback = &debugCallback};
+        debugMessenger = instance.createDebugUtilsMessengerEXT(debugUtilsMessengerCreateInfoEXT);
+    }
+
+    std::vector<const char *> getRequiredExtensions()
+    {
+        uint32_t glfwExtensionCount = 0;
+        auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+        std::vector extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+        if (enableValidationLayers)
+        {
+            extensions.push_back(vk::EXTDebugUtilsExtensionName);
+        }
+
+        return extensions;
+    }
+
+    static VKAPI_ATTR vk::Bool32 VKAPI_CALL debugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity, vk::DebugUtilsMessageTypeFlagsEXT type, const vk::DebugUtilsMessengerCallbackDataEXT *pCallbackData, void *)
+    {
+        if (severity >= vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning)
+        {
+            std::cerr << "validation layer: type " << to_string(type) << " msg: " << pCallbackData->pMessage << std::endl;
+        }
+
+        return vk::False;
     }
 };
 
