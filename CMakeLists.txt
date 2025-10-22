@@ -20,6 +20,12 @@ include_directories(src)
 # add the executable
 add_executable(Tutorial src/main.cpp)
 
+# Set compiler flags for debug and release builds
+target_compile_options(Tutorial PRIVATE
+    $<$<CONFIG:DEBUG>:-g -O0 -Wall -Wextra -Wpedantic>
+    $<$<CONFIG:RELEASE>:-O3 -Wall -Wextra -Wpedantic>
+)
+
 # Link libraries
 target_link_libraries(Tutorial ${Vulkan_LIBRARIES} ${GLFW3_LIBRARIES})
 target_include_directories(Tutorial PRIVATE ${Vulkan_INCLUDE_DIRS} ${GLFW3_INCLUDE_DIRS})
