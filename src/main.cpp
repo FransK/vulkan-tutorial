@@ -78,7 +78,7 @@ private:
             .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
             .pEngineName = "No Engine",
             .engineVersion = VK_MAKE_VERSION(1, 0, 0),
-            .apiVersion = vk::ApiVersion13};
+            .apiVersion = vk::ApiVersion14};
 
         // Get the required layers
         std::vector<char const *> requiredLayers;
