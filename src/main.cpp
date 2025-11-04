@@ -70,6 +70,8 @@ private:
     uint32_t semaphoreIndex = 0;
     uint32_t currentFrame = 0;
 
+    bool framebufferResized = false;
+
     std::vector<const char *> requiredDeviceExtension = {
         vk::KHRSwapchainExtensionName,
         vk::KHRSpirv14ExtensionName,
@@ -81,9 +83,17 @@ private:
         glfwInit();
 
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+        glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
         window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
+        glfwSetWindowUserPointer(window, this);
+        glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+    }
+
+    static void framebufferResizeCallback(GLFWwindow *window, int width, int height)
+    {
+        auto app = reinterpret_cast<HelloTriangleApplication *>(glfwGetWindowUserPointer(window));
+        app->framebufferResized = true;
     }
 
     void initVulkan()
@@ -112,11 +122,34 @@ private:
         device.waitIdle();
     }
 
+    void cleanupSwapChain()
+    {
+        swapChainImageViews.clear();
+        swapChain = nullptr;
+    }
+
     void cleanup()
     {
         glfwDestroyWindow(window);
 
         glfwTerminate();
+    }
+
+    void recreateSwapChain()
+    {
+        int width = 0, height = 0;
+        glfwGetFramebufferSize(window, &width, &height);
+        while (width == 0 || height == 0)
+        {
+            glfwGetFramebufferSize(window, &width, &height);
+            glfwWaitEvents();
+        }
+
+        device.waitIdle();
+
+        cleanupSwapChain();
+        createSwapChain();
+        createImageViews();
     }
 
     void createInstance()
@@ -377,6 +410,7 @@ private:
 
     void createCommandBuffers()
     {
+        commandBuffers.clear();
         vk::CommandBufferAllocateInfo allocInfo{.commandPool = commandPool, .level = vk::CommandBufferLevel::ePrimary, .commandBufferCount = MAX_FRAMES_IN_FLIGHT};
         commandBuffers = vk::raii::CommandBuffers(device, allocInfo);
     }
@@ -481,6 +515,16 @@ private:
             ;
         auto [result, imageIndex] = swapChain.acquireNextImage(UINT64_MAX, *presentCompleteSemaphore[semaphoreIndex], nullptr);
 
+        if (result == vk::Result::eErrorOutOfDateKHR)
+        {
+            recreateSwapChain();
+            return;
+        }
+        if (result != vk::Result::eSuccess && result != vk::Result::eSuboptimalKHR)
+        {
+            throw std::runtime_error("failed to acquire swap chain image!");
+        }
+
         device.resetFences(*inFlightFences[currentFrame]);
         commandBuffers[currentFrame].reset();
         recordCommandBuffer(imageIndex);
@@ -489,17 +533,31 @@ private:
         const vk::SubmitInfo submitInfo{.waitSemaphoreCount = 1, .pWaitSemaphores = &*presentCompleteSemaphore[semaphoreIndex], .pWaitDstStageMask = &waitDestinationStageMask, .commandBufferCount = 1, .pCommandBuffers = &*commandBuffers[currentFrame], .signalSemaphoreCount = 1, .pSignalSemaphores = &*renderFinishedSemaphore[imageIndex]};
         queue.submit(submitInfo, *inFlightFences[currentFrame]);
 
-        const vk::PresentInfoKHR presentInfoKHR{.waitSemaphoreCount = 1, .pWaitSemaphores = &*renderFinishedSemaphore[imageIndex], .swapchainCount = 1, .pSwapchains = &*swapChain, .pImageIndices = &imageIndex};
-        result = queue.presentKHR(presentInfoKHR);
-        switch (result)
+        try
         {
-        case vk::Result::eSuccess:
-            break;
-        case vk::Result::eSuboptimalKHR:
-            std::cout << "vk::Queue::presentKHR returned vk::Result::eSuboptimalKHR !\n";
-            break;
-        default:
-            break; // an unexpected result is returned!
+            const vk::PresentInfoKHR presentInfoKHR{.waitSemaphoreCount = 1, .pWaitSemaphores = &*renderFinishedSemaphore[imageIndex], .swapchainCount = 1, .pSwapchains = &*swapChain, .pImageIndices = &imageIndex};
+            result = queue.presentKHR(presentInfoKHR);
+            if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR || framebufferResized)
+            {
+                framebufferResized = false;
+                recreateSwapChain();
+            }
+            else if (result != vk::Result::eSuccess)
+            {
+                throw std::runtime_error("failed to present swap chain image!");
+            }
+        }
+        catch (const vk::SystemError &e)
+        {
+            if (e.code().value() == static_cast<int>(vk::Result::eErrorOutOfDateKHR))
+            {
+                recreateSwapChain();
+                return;
+            }
+            else
+            {
+                throw;
+            }
         }
         semaphoreIndex = (semaphoreIndex + 1) % presentCompleteSemaphore.size();
         currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
