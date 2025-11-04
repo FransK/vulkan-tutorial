@@ -13,6 +13,7 @@ find_package(Vulkan REQUIRED)
 
 # Find GLFW
 pkg_check_modules(GLFW3 REQUIRED glfw3)
+pkg_check_modules(GLM REQUIRED glm)
 
 # Find Slang compiler (optional)
 find_program(SLANGC_EXECUTABLE slangc)
@@ -66,5 +67,5 @@ target_compile_options(Tutorial PRIVATE
 
 # Link libraries
 target_link_libraries(Tutorial ${Vulkan_LIBRARIES} ${GLFW3_LIBRARIES})
-target_include_directories(Tutorial PRIVATE ${Vulkan_INCLUDE_DIRS} ${GLFW3_INCLUDE_DIRS})
+target_include_directories(Tutorial PRIVATE ${Vulkan_INCLUDE_DIRS} ${GLFW3_INCLUDE_DIRS} ${GLM_INCLUDE_DIRS})
 target_compile_definitions(Tutorial PRIVATE ${GLFW3_CFLAGS_OTHER} VULKAN_HPP_NO_STRUCT_CONSTRUCTORS)
